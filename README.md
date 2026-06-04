@@ -190,7 +190,7 @@ Prepare an input file with the same format as <code>./examples/input_demo.txt</c
 
 ```bash
 # Ensure that your current working directory is the 'RNAverse' folder.
-python examples/infer_embed.py \
+python ./examples/infer_embed.py \
     --model_name_or_path ./model_weights/rnaverse \
     --input_txt ./examples/input_demo.txt \
     --output_dir ./output/embed \
