@@ -51,7 +51,7 @@ def parse_arguments():
                         help='Batch size for inference')
     parser.add_argument('--random_seed', type=int, default=37,
                         help='Random seed')
-    parser.add_argument('--device', type=str, default='cuda',
+    parser.add_argument('--device', type=str, default='cuda:0',
                         help='Device to use (cuda or cpu)')
     
     args = parser.parse_args()

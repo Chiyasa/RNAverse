@@ -35,7 +35,7 @@ def parse_arguments():
                         help='Path to RNAverse-UTR model file (best_model.pt)')
     parser.add_argument('--bs', type=int, default=32, help='batch size')
     parser.add_argument('--random_seed', type=int, default=42, help='random seed')
-    parser.add_argument('--device', type=str, default='cuda', help='device to use (cuda or cpu)')
+    parser.add_argument('--device', type=str, default='cuda:0', help='device to use (cuda or cpu)')
     
     args = parser.parse_args()
     return args

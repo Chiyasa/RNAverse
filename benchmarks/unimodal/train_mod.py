@@ -1,4 +1,6 @@
 import os
+if "CUDA_VISIBLE_DEVICES" not in os.environ:
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 import json
 from dataclasses import dataclass, field
 from typing import Optional, Dict, Sequence

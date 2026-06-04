@@ -88,7 +88,7 @@ def train_rbp(rbp_name, args):
 
     model = PrismNetLM(args, extractor, tokenizer)
     model.eval()
-    device = torch.device("cuda")
+    device = torch.device("cuda:0")
     model.to(device)
 
     optimizer_pretrain = torch.optim.Adam(model.extractor.parameters(), lr=args.lr_up)

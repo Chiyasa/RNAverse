@@ -68,7 +68,7 @@ class IterativeGenerator():
         self.tokenizer = RNAverseTokenizer.from_pretrained(model_name_or_path)
         self.model = RNAverseForMaskedLM.from_pretrained(model_name_or_path)
         self.model.eval()
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
         self.model.to(self.device)
 
     @torch.no_grad()
