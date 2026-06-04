@@ -16,6 +16,7 @@ This is a [PyTorch](https://pytorch.org/) implementation of our study:
 - [Fine-Tuned In-Painting](#fine-tuned-in-painting)
 - [Iterative Optimization](#iterative-optimization)
 
+<a name="installation"></a>
 ## :wrench: Installation
 
 ```bash
@@ -26,6 +27,7 @@ pip install torch==2.1.0 torchvision==0.16.0 torchaudio==2.1.0 --index-url https
 pip install /data1/majianbo/20230411_msa/rnaverse_github_prepare/dist/rnaverse-0.1.0-py3-none-any.whl
 ```
 
+<a name="download-model-weights-and-benchmark-datasets"></a>
 ## :arrow_down: Download Model Weights and Benchmark Datasets
 
 <p align="justify">
@@ -59,6 +61,7 @@ wget https://zenodo.org/records/20526662/files/benchmarks.zip
 unzip benchmarks.zip
 ```
 
+<a name="inference-extract-embeddings"></a>
 ## :brain: Inference: Extract Embeddings
 
 ### Option 1: Python API
@@ -182,6 +185,7 @@ python examples/infer_embed.py \
 
 :heavy_exclamation_mark: Embeddings will be saved as `.pkl` files in the output directory.
 
+<a name="downstream-task-training"></a>
 ## :microscope: Downstream Task Training
 
 <p align="justify">
@@ -214,6 +218,7 @@ python3 ./benchmarks/multimodal/train_ssi.py \
     --model_type rnaverse
 ```
 
+<a name="zero-shot-in-painting"></a>
 ## :rocket: Zero-Shot In-Painting
 
 <p align="justify">
@@ -232,6 +237,7 @@ python ./generation/in_painting.py \
     --output_fa ./output/design/RNAverse_gACA19.fa
 ```
 
+<a name="fine-tuned-in-painting"></a>
 ## :art: Fine-Tuned In-Painting
 
 <p align="justify">
@@ -274,6 +280,7 @@ python ./generation/in_painting.py \
     --output_fa ./output/design/RNAverse_aptamer.fa
 ```
 
+<a name="iterative-optimization"></a>
 ## :repeat: Iterative Optimization
 
 <p align="justify">
