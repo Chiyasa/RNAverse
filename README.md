@@ -195,8 +195,7 @@ python examples/infer_embed.py \
     --input_txt ./examples/input_demo.txt \
     --output_dir ./output/embed \
     --output_embed_format ave \
-    --batch_size 64 \
-    --device cuda
+    --batch_size 64
 ```
 
 :heavy_exclamation_mark: Embeddings will be saved as `.pkl` files in the output directory.
