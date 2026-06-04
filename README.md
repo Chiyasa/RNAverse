@@ -16,7 +16,7 @@ This is a [PyTorch](https://pytorch.org/) implementation of our study:
 - [Fine-Tuned In-Painting](#fine-tuned-in-painting)
 - [Iterative Optimization](#iterative-optimization)
 
-## Installation
+## :wrench: Installation
 
 ```bash
 conda create -n rnaverse python=3.10.12
@@ -26,7 +26,7 @@ pip install torch==2.1.0 torchvision==0.16.0 torchaudio==2.1.0 --index-url https
 pip install /data1/majianbo/20230411_msa/rnaverse_github_prepare/dist/rnaverse-0.1.0-py3-none-any.whl
 ```
 
-## Download Model Weights and Benchmark Datasets
+## :arrow_down: Download Model Weights and Benchmark Datasets
 
 <p align="justify">
 We have uploaded the model weights and benchmark datasets of RNAverse to Zenodo. Please download them from the links below, place them in the respective directories, and unzip them:
@@ -59,7 +59,7 @@ wget https://zenodo.org/records/20526662/files/benchmarks.zip
 unzip benchmarks.zip
 ```
 
-## Inference: Extract Embeddings
+## :brain: Inference: Extract Embeddings
 
 ### Option 1: Python API
 
@@ -170,6 +170,7 @@ Prepare an input file with the same format as <code>./examples/input_demo.txt</c
 </p>
 
 ```bash
+# Ensure that your current working directory is the 'RNAverse' folder.
 python examples/infer_embed.py \
     --model_name_or_path ./model_weights/rnaverse \
     --input_txt ./examples/input_demo.txt \
@@ -181,13 +182,14 @@ python examples/infer_embed.py \
 
 :heavy_exclamation_mark: Embeddings will be saved as `.pkl` files in the output directory.
 
-## Downstream Task Training
+## :microscope: Downstream Task Training
 
 <p align="justify">
 Taking the Structure Score Imputation task on the HEK293 dataset as an example:
 </p>
 
 ```bash
+# Ensure that your current working directory is the 'RNAverse' folder.
 python3 ./benchmarks/multimodal/train_ssi.py \
     --model_name_or_path ./model_weights/rnaverse \
     --data_path ./data/benchmarks/multimodal/SSI \
@@ -212,13 +214,14 @@ python3 ./benchmarks/multimodal/train_ssi.py \
     --model_type rnaverse
 ```
 
-## Zero-Shot In-Painting
+## :rocket: Zero-Shot In-Painting
 
 <p align="justify">
 RNAverse can directly design RNA functional classes that were included in the multimodal alignment stage using the zero-shot in-painting strategy. Below is an example for the design of RNAverse-gACA19:
 </p>
 
 ```bash
+# Ensure that your current working directory is the 'RNAverse' folder.
 python ./generation/in_painting.py \
     --init_seq ./data/design/RNAverse_gACA19_init.fa \
     --model_name_or_path ./model_weights/rnaverse \
@@ -229,7 +232,7 @@ python ./generation/in_painting.py \
     --output_fa /path/to/output/RNAverse_gACA19.fa
 ```
 
-## Fine-Tuned In-Painting
+## :art: Fine-Tuned In-Painting
 
 <p align="justify">
 For RNA functional classes that are absent from the alignment corpus, RNAverse can be fine-tuned with the MLM objective using sequences from the target RNA class. Below is an example using IGFBP3 aptamer SELEX sequences.
@@ -238,6 +241,7 @@ For RNA functional classes that are absent from the alignment corpus, RNAverse c
 > :heavy_exclamation_mark: **Note:** The `func_vocab.json` and `rfam_map.json` files should be edited first to include the novel functional class, as shown in `./model_weights/rnaverse-aptamer/func_vocab.json` and `./model_weights/rnaverse-aptamer/rfam_map.json`.
 
 ```bash
+# Ensure that your current working directory is the 'RNAverse' folder.
 python3 ./examples/ft_mlm.py \
     --batch_size 32 \
     --lr 5e-6 \
@@ -259,6 +263,7 @@ We provide the trained model weights of RNAverse-aptamer, which can be directly 
 </p>
 
 ```bash
+# Ensure that your current working directory is the 'RNAverse' folder.
 python ./generation/in_painting.py \
     --init_seq ./data/design/RNAverse_aptamer_init.fa \
     --model_name_or_path ./model_weights/rnaverse-aptamer \
@@ -269,13 +274,14 @@ python ./generation/in_painting.py \
     --output_fa /path/to/output/RNAverse_aptamer.fa
 ```
 
-## Iterative Optimization
+## :repeat: Iterative Optimization
 
 <p align="justify">
 We provide the model weights of RNAverse-UTR and RNAverse-SHAPE, which can be directly used for iterative optimization to design 5&prime; UTR sequences:
 </p>
 
 ```bash
+# Ensure that your current working directory is the 'RNAverse' folder.
 python3 ./generation/iterative_optimization.py \
     --out_dir /path/to/output/ \
     --cds ATGGTGAGCAAGGGCGAGGAGCTGTTCACCGGGGTGGTGCCCATCCTGGT \
