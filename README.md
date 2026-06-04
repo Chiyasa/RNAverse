@@ -1,6 +1,6 @@
-# RNAverse Quick Start
+# Table of Contents
 
-- [RNAverse Quick Start](#rnaverse-quick-start)
+- [Table of Contents](#table-of-contents)
   - [Installation](#installation)
   - [Download Model Weights and Benchmark Datasets](#download-model-weights-and-benchmark-datasets)
   - [Inference: Extract Embeddings](#inference-extract-embeddings)
@@ -10,7 +10,6 @@
   - [Zero-Shot In-Painting](#zero-shot-in-painting)
   - [Fine-Tuned In-Painting](#fine-tuned-in-painting)
   - [Iterative Optimization](#iterative-optimization)
-- [Ensure that your current working directory is the 'RNAverse' folder:](#ensure-that-your-current-working-directory-is-the-rnaverse-folder)
 
 ## Installation
 
@@ -162,7 +161,6 @@ print(f"CLS embedding shape: {embed_cls.shape}")
 Prepare an input file with the same format as `./examples/input_demo.txt`, then run:
 
 ```bash
-# Ensure that your current working directory is the 'RNAverse' folder:
 python examples/infer_embed.py \
     --model_name_or_path ./model_weights/rnaverse \
     --input_txt ./examples/input_demo.txt \
@@ -179,7 +177,6 @@ Embeddings will be saved as `.pkl` files in the output directory.
 Taking the Structure Score Imputation task on the HEK293 dataset as an example:
 
 ```bash
-# Ensure that your current working directory is the 'RNAverse' folder:
 python3 ./benchmarks/multimodal/train_ssi.py \
     --model_name_or_path ./model_weights/rnaverse \
     --data_path ./data/benchmarks/multimodal/SSI \
@@ -209,7 +206,6 @@ python3 ./benchmarks/multimodal/train_ssi.py \
 RNAverse can directly design RNA functional classes that were included in the multimodal alignment stage using the zero-shot in-painting strategy. Below is an example for the design of RNAverse-gACA19:
 
 ```bash
-# Ensure that your current working directory is the 'RNAverse' folder:
 python ./generation/in_painting.py \
     --init_seq ./data/design/RNAverse_gACA19_init.fa \
     --model_name_or_path ./model_weights/rnaverse \
@@ -227,7 +223,6 @@ For RNA functional classes that are absent from the alignment corpus, RNAverse c
 > **Note:** The `func_vocab.json` and `rfam_map.json` files should be edited first to include the novel functional class, as shown in `./model_weights/rnaverse-aptamer/func_vocab.json` and `./model_weights/rnaverse-aptamer/rfam_map.json`.
 
 ```bash
-# Ensure that your current working directory is the 'RNAverse' folder:
 python3 ./examples/ft_mlm.py \
     --batch_size 32 \
     --lr 5e-6 \
@@ -247,7 +242,6 @@ python3 ./examples/ft_mlm.py \
 We provide the trained model weights of RNAverse-aptamer, which can be directly used for in-painting generation of the IGFBP3 aptamer:
 
 ```bash
-# Ensure that your current working directory is the 'RNAverse' folder:
 python ./generation/in_painting.py \
     --init_seq ./data/design/RNAverse_aptamer_init.fa \
     --model_name_or_path ./model_weights/rnaverse-aptamer \
@@ -263,7 +257,6 @@ python ./generation/in_painting.py \
 We provide the model weights of RNAverse-UTR and RNAverse-SHAPE, which can be directly used for iterative optimization to design 5′ UTR sequences:
 
 ```bash
-# Ensure that your current working directory is the 'RNAverse' folder:
 python3 ./generation/iterative_optimization.py \
     --out_dir /path/to/output/ \
     --cds ATGGTGAGCAAGGGCGAGGAGCTGTTCACCGGGGTGGTGCCCATCCTGGT \
