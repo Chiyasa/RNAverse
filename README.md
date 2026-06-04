@@ -174,7 +174,7 @@ Prepare an input file with the same format as <code>./examples/input_demo.txt</c
 python examples/infer_embed.py \
     --model_name_or_path ./model_weights/rnaverse \
     --input_txt ./examples/input_demo.txt \
-    --output_dir /path/to/output \
+    --output_dir ./output/embed \
     --output_embed_format ave \
     --batch_size 64 \
     --device cuda
@@ -202,7 +202,7 @@ python3 ./benchmarks/multimodal/train_ssi.py \
     --num_train_epochs 30 \
     --fp16 \
     --save_steps 400 \
-    --output_dir /path/to/output/293 \
+    --output_dir ./output/downstream/SSI_293_seed42 \
     --save_strategy steps \
     --eval_strategy steps \
     --eval_steps 200 \
@@ -229,7 +229,7 @@ python ./generation/in_painting.py \
     --random_seed 42 \
     --seq_num 5000 \
     --max_token_per_iter 5 \
-    --output_fa /path/to/output/RNAverse_gACA19.fa
+    --output_fa ./output/design/RNAverse_gACA19.fa
 ```
 
 ## :art: Fine-Tuned In-Painting
@@ -250,7 +250,7 @@ python3 ./examples/ft_mlm.py \
     --model_path ./model_weights/rnaverse \
     --config_path ./model_weights/rnaverse-aptamer \
     --tokenizer_path ./model_weights/rnaverse-aptamer \
-    --save_model_dir /path/to/output/ \
+    --save_model_dir ./output/design/ft_mlm/ \
     --max_epoch 200 \
     --tol_epoch 8 \
     --whether_ft 1 \
@@ -271,7 +271,7 @@ python ./generation/in_painting.py \
     --random_seed 42 \
     --seq_num 5000 \
     --max_token_per_iter 1 \
-    --output_fa /path/to/output/RNAverse_aptamer.fa
+    --output_fa ./output/design/RNAverse_aptamer.fa
 ```
 
 ## :repeat: Iterative Optimization
@@ -283,7 +283,7 @@ We provide the model weights of RNAverse-UTR and RNAverse-SHAPE, which can be di
 ```bash
 # Ensure that your current working directory is the 'RNAverse' folder.
 python3 ./generation/iterative_optimization.py \
-    --out_dir /path/to/output/ \
+    --out_dir ./output/design/iter_opt_utr5/ \
     --cds ATGGTGAGCAAGGGCGAGGAGCTGTTCACCGGGGTGGTGCCCATCCTGGT \
     --design_length 150 \
     --nbr_sequences 500 \
