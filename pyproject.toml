@@ -34,8 +34,7 @@ classifiers = [
 # Installation instructions:
 # - pip install rnaverse
 
-dependencies = [
-    "torch==2.1.0",         
+dependencies = [         
     "transformers==4.34.0", 
     "numpy==1.26.1",        
     "h5py==3.10.0",

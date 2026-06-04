@@ -18,7 +18,20 @@ This is a [PyTorch](https://pytorch.org/) implementation of our study:
 
 <a name="installation"></a>
 ## :wrench: Installation
+Please run the following command to check your CUDA version before installing RNAverse:
+```bash
+nvidia-smi
+```
+ or 
+ ```bash
+nvcc --version
+```
+<!-- Note: All tests were conducted on a **Linux Ubuntu 13.x** operating system with CUDA versions **11.x and 12.x**.  -->
 
+:heavy_exclamation_mark: Note: To install **Torch** versions compatible with your CUDA setup, please refer to the following URLs:  
+- Torch: https://pytorch.org/get-started/previous-versions/  
+
+The installation commands below reflect the development environment of RNAverse (PyTorch 2.1.0 + CUDA 12.1). If your setup requires a different version (e.g., an older CUDA or a different PyTorch release), please modify the PyTorch installation as needed, but compatibility is not guaranteed.
 ```bash
 conda create -n rnaverse python=3.10.12
 conda activate rnaverse
