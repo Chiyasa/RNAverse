@@ -1,15 +1,20 @@
-# Table of Contents
+# :dna: RNAverse
 
-- [Table of Contents](#table-of-contents)
-  - [Installation](#installation)
-  - [Download Model Weights and Benchmark Datasets](#download-model-weights-and-benchmark-datasets)
-  - [Inference: Extract Embeddings](#inference-extract-embeddings)
-    - [Option 1: Python API](#option-1-python-api)
-    - [Option 2: Command Line](#option-2-command-line)
-  - [Downstream Task Training](#downstream-task-training)
-  - [Zero-Shot In-Painting](#zero-shot-in-painting)
-  - [Fine-Tuned In-Painting](#fine-tuned-in-painting)
-  - [Iterative Optimization](#iterative-optimization)
+This is a [PyTorch](https://pytorch.org/) implementation of our study:
+
+## :dart: RNAverse: RNA versatile embedding representation space for engineering
+
+## :book: Table of Contents
+
+- [Installation](#installation)
+- [Download Model Weights and Benchmark Datasets](#download-model-weights-and-benchmark-datasets)
+- [Inference: Extract Embeddings](#inference-extract-embeddings)
+  - [Option 1: Python API](#option-1-python-api)
+  - [Option 2: Command Line](#option-2-command-line)
+- [Downstream Task Training](#downstream-task-training)
+- [Zero-Shot In-Painting](#zero-shot-in-painting)
+- [Fine-Tuned In-Painting](#fine-tuned-in-painting)
+- [Iterative Optimization](#iterative-optimization)
 
 ## Installation
 
@@ -23,12 +28,14 @@ pip install /data1/majianbo/20230411_msa/rnaverse_github_prepare/dist/rnaverse-0
 
 ## Download Model Weights and Benchmark Datasets
 
+<p align="justify">
 We have uploaded the model weights and benchmark datasets of RNAverse to Zenodo. Please download them from the links below, place them in the respective directories, and unzip them:
+</p>
 
 - **Model weights** (RNAverse, RNAverse-aptamer, RNAverse-UTR, RNAverse-SHAPE) can be downloaded from [Zenodo](https://zenodo.org/records/20527121/) and should be placed into the `./model_weights/` directory.
 - **Benchmark datasets** can be downloaded from [Zenodo](https://zenodo.org/records/20526662) and should be placed into the `./data/` directory.
 
-Alternatively, you can use the following commands to download and unzip them:
+Alternatively, you can use the following commands:
 
 ```bash
 git clone https://github.com/Chiyasa/RNAverse.git
@@ -82,7 +89,7 @@ model.to(device)
 
 input_dict_list = [
     # We demonstrate the different types of inputs accepted by the model.
-    # 1) Only sequence – all other fields take default values
+    # 1) Only sequence -- all other fields take default values
     {
         'seq': 'UGAA',
     },
@@ -107,7 +114,7 @@ input_dict_list = [
         'func_list': ["riboswitch","Cis-reg","RF00167","GO:0009113"], 
         # struct_score_list and probe_method default
     },
-    # 5) Sequence with Rfam ID – automatically looks up the corresponding func_list from /path/to/RNAverse/rfam_map.json
+    # 5) Sequence with Rfam ID -- automatically looks up the corresponding func_list from /path/to/RNAverse/rfam_map.json
     {
         'seq': 'GGCCU',
         'rfam_id': 'RF00167',        # overrides any explicit 'func_list' if present
@@ -126,7 +133,7 @@ input_dict_list = [
         'struct_score_list': [0.13, 0.51, 0.32, 0.94, -1, 0.27, 0.88, 0.477, 0.631],
         'probe_method': 'icSHAPE',
         'func_list': ["riboswitch","Cis-reg","RF00167","GO:0009113"], 
-        'mask_pos_list': [4],         # mask the 5th nucleotide (index 4) – only the sequence token
+        'mask_pos_list': [4],         # mask the 5th nucleotide (index 4) -- only the sequence token
     },
 ]
 
@@ -158,7 +165,9 @@ print(f"CLS embedding shape: {embed_cls.shape}")
 
 ### Option 2: Command Line
 
-Prepare an input file with the same format as `./examples/input_demo.txt`, then run:
+<p align="justify">
+Prepare an input file with the same format as <code>./examples/input_demo.txt</code>, then run:
+</p>
 
 ```bash
 python examples/infer_embed.py \
@@ -170,11 +179,13 @@ python examples/infer_embed.py \
     --device cuda
 ```
 
-Embeddings will be saved as `.pkl` files in the output directory.
+:heavy_exclamation_mark: Embeddings will be saved as `.pkl` files in the output directory.
 
 ## Downstream Task Training
 
+<p align="justify">
 Taking the Structure Score Imputation task on the HEK293 dataset as an example:
+</p>
 
 ```bash
 python3 ./benchmarks/multimodal/train_ssi.py \
@@ -203,7 +214,9 @@ python3 ./benchmarks/multimodal/train_ssi.py \
 
 ## Zero-Shot In-Painting
 
+<p align="justify">
 RNAverse can directly design RNA functional classes that were included in the multimodal alignment stage using the zero-shot in-painting strategy. Below is an example for the design of RNAverse-gACA19:
+</p>
 
 ```bash
 python ./generation/in_painting.py \
@@ -218,9 +231,11 @@ python ./generation/in_painting.py \
 
 ## Fine-Tuned In-Painting
 
+<p align="justify">
 For RNA functional classes that are absent from the alignment corpus, RNAverse can be fine-tuned with the MLM objective using sequences from the target RNA class. Below is an example using IGFBP3 aptamer SELEX sequences.
+</p>
 
-> **Note:** The `func_vocab.json` and `rfam_map.json` files should be edited first to include the novel functional class, as shown in `./model_weights/rnaverse-aptamer/func_vocab.json` and `./model_weights/rnaverse-aptamer/rfam_map.json`.
+> :heavy_exclamation_mark: **Note:** The `func_vocab.json` and `rfam_map.json` files should be edited first to include the novel functional class, as shown in `./model_weights/rnaverse-aptamer/func_vocab.json` and `./model_weights/rnaverse-aptamer/rfam_map.json`.
 
 ```bash
 python3 ./examples/ft_mlm.py \
@@ -239,7 +254,9 @@ python3 ./examples/ft_mlm.py \
     --test_txt ./data/design/datasetA_IGFBP3_P6_test_rnaverse.txt
 ```
 
+<p align="justify">
 We provide the trained model weights of RNAverse-aptamer, which can be directly used for in-painting generation of the IGFBP3 aptamer:
+</p>
 
 ```bash
 python ./generation/in_painting.py \
@@ -254,7 +271,9 @@ python ./generation/in_painting.py \
 
 ## Iterative Optimization
 
-We provide the model weights of RNAverse-UTR and RNAverse-SHAPE, which can be directly used for iterative optimization to design 5′ UTR sequences:
+<p align="justify">
+We provide the model weights of RNAverse-UTR and RNAverse-SHAPE, which can be directly used for iterative optimization to design 5&prime; UTR sequences:
+</p>
 
 ```bash
 python3 ./generation/iterative_optimization.py \
