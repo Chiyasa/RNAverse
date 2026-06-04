@@ -185,7 +185,7 @@ print(f"CLS embedding shape: {embed_cls.shape}")
 ### Option 2: Command Line
 
 <p align="justify">
-Prepare an input file with the same format as <code>./examples/input_demo.txt</code>, then run:
+Prepare an input file following the same format as ./examples/input_demo.txt. For demonstration, the example below uses ./examples/input_demo.txt directly. Then run:
 </p>
 
 ```bash
