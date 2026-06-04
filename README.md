@@ -55,8 +55,10 @@ Alternatively, you can use the following commands:
 ```bash
 git clone https://github.com/Chiyasa/RNAverse.git
 
+cd RNAverse
 # Download model weights (RNAverse, RNAverse-aptamer, RNAverse-UTR, and RNAverse-SHAPE)
 # into the ./model_weights/ directory
+cd ./model_weights
 wget https://zenodo.org/records/20527121/files/rnaverse.zip
 unzip rnaverse.zip
 
@@ -70,6 +72,7 @@ wget https://zenodo.org/records/20527121/files/rnaverse_shape.zip
 unzip rnaverse_shape.zip
 
 # Download benchmark datasets into the ./data/ directory
+cd ../data
 wget https://zenodo.org/records/20526662/files/benchmarks.zip
 unzip benchmarks.zip
 ```
@@ -238,9 +241,12 @@ python3 ./benchmarks/multimodal/train_ssi.py \
 RNAverse can directly design RNA functional classes that were included in the multimodal alignment stage using the zero-shot in-painting strategy. Below is an example for the design of RNAverse-gACA19:
 </p>
 
+> :heavy_exclamation_mark: **Note:** In the initial fasta (`--init_seq`) for the `./generation/in_painting.py`, `N` represents the nucleotide
+positions to be generated.
+
 ```bash
 # Ensure that your current working directory is the 'RNAverse' folder.
-python ./generation/in_painting.py \
+python3 ./generation/in_painting.py \
     --init_seq ./data/design/RNAverse_gACA19_init.fa \
     --model_name_or_path ./model_weights/rnaverse \
     --rfam_id RF00413 \
@@ -283,7 +289,7 @@ We provide the trained model weights of RNAverse-aptamer, which can be directly 
 
 ```bash
 # Ensure that your current working directory is the 'RNAverse' folder.
-python ./generation/in_painting.py \
+python3 ./generation/in_painting.py \
     --init_seq ./data/design/RNAverse_aptamer_init.fa \
     --model_name_or_path ./model_weights/rnaverse-aptamer \
     --rfam_id IGFBP3_aptamer \
