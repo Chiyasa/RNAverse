@@ -241,8 +241,7 @@ python3 ./benchmarks/multimodal/train_ssi.py \
 RNAverse can directly design RNA functional classes that were included in the multimodal alignment stage using the zero-shot in-painting strategy. Below is an example for the design of RNAverse-gACA19:
 </p>
 
-> :heavy_exclamation_mark: **Note:** In the initial fasta (`--init_seq`) for the `./generation/in_painting.py`, `N` represents the nucleotide
-positions to be generated.
+> :heavy_exclamation_mark: **Note:** In the initial FASTA sequence provided to `--init_seq` in `./generation/in_painting.py`, the character `N` denotes positions where new nucleotides will be generated (i.e., masked positions). All other characters (A, U, C, G) remain fixed.
 
 ```bash
 # Ensure that your current working directory is the 'RNAverse' folder.
