@@ -165,6 +165,9 @@ def collate_fn_mlm(batch_data, tokenizer, pad_len, is_train=True):
     return batch_inputs
 
 
+# Module-level loss function to avoid repeated instantiation
+LOSS_CE = torch.nn.CrossEntropyLoss(reduction='none')
+
 def loss_fn_mlm(output, label, new_id_mask):
     '''
     Compute MLM loss only on masked positions.
@@ -172,11 +175,10 @@ def loss_fn_mlm(output, label, new_id_mask):
     # output shape is bs* seq_len+1 * vocab_size
     # label shape is bs*seq_len+1
     output = output.permute(0,2,1)
-    loss_ce = torch.nn.CrossEntropyLoss(reduction='none')
     if torch.sum(new_id_mask) == 0:
-        return torch.sum(loss_ce(output, label)*new_id_mask)
+        return torch.sum(LOSS_CE(output, label)*new_id_mask)
     else:
-        loss = torch.sum(loss_ce(output, label)*new_id_mask)/torch.sum(new_id_mask)
+        loss = torch.sum(LOSS_CE(output, label)*new_id_mask)/torch.sum(new_id_mask)
     return loss
 
 
@@ -216,6 +218,10 @@ def validate(model, dataloader, device):
             val_loss_weight_list.append(batch_inputs['mask_indicator'].sum().item())
             val_acc += acc.item()
             val_total += total.item()
+
+    # Clear CUDA cache after validation to free fragmented memory
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
 
     if val_total == 0:
         return 0.0, 0.0, 0
@@ -392,6 +398,10 @@ def main(args):
         train_loss = np.sum(np.array(train_loss_list) * np.array(train_loss_weight_list)) / np.sum(train_loss_weight_list)
         print(f'Train loss: {train_loss:.4f}, acc: {train_acc/train_total:.4f} ({train_acc}/{train_total})')
         
+        # Clear CUDA cache after each training epoch to reduce fragmentation
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        
         # Validation
         val_loss, val_acc, val_total = validate(model, val_dataloader, device)
         print(f'Val loss: {val_loss:.4f}, acc: {val_acc/val_total:.4f} ({val_acc}/{val_total})')
@@ -411,9 +421,12 @@ def main(args):
             if args.save_model_dir is not None:
                 os.makedirs(args.save_model_dir, exist_ok=True)
                 # Save model, config, and tokenizer using save_pretrained
+                # Move to CPU first to avoid GPU memory fragmentation from state_dict deep copy
+                model.cpu()
                 model.save_pretrained(args.save_model_dir)
                 tokenizer.save_pretrained(args.save_model_dir)
                 config.save_pretrained(args.save_model_dir)
+                model.to(device)
                 print(f'Best model, config, and tokenizer saved to {args.save_model_dir}')
         else:
             if epoch - best_epoch >= args.tol_epoch:
