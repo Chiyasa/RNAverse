@@ -37,7 +37,7 @@ conda create -n rnaverse python=3.10.12
 conda activate rnaverse
 pip install numpy==1.26.1
 pip install torch==2.1.0 torchvision==0.16.0 torchaudio==2.1.0 --index-url https://download.pytorch.org/whl/cu121
-pip install /data1/majianbo/20230411_msa/rnaverse_github_prepare/dist/rnaverse-0.1.0-py3-none-any.whl
+pip install rnaverse-0.1.0-py3-none-any.whl
 ```
 
 <a name="download-model-weights-and-benchmark-datasets"></a>
