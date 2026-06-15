@@ -2,7 +2,7 @@
 
 This is a [PyTorch](https://pytorch.org/) implementation of our study:
 
-## :dart: RNAverse: RNA <ins>v<ins>ersatile <ins>e<ins>mbedding <ins>r<ins>epresentation <ins>s<ins>pace for <ins>e<ins>ngineering
+## :dart: RNAverse: RNA versatile embedding representation space for engineering
 
 ## :book: Table of Contents
 
