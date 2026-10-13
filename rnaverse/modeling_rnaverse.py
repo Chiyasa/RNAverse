@@ -70,7 +70,7 @@ def apply_rotary_pos_emb(x, cos, sin):
 
 def gelu(x):
     """
-    This is the gelu implementation from the original ESM repo. Using F.gelu yields subtly wrong results.
+    This is the gelu implementation from the original ESM repo.
     """
     return x * 0.5 * (1.0 + torch.erf(x / math.sqrt(2.0)))
 
@@ -200,7 +200,7 @@ class RNAverseEmbeddings(nn.Module):
 
         # although for the 2nd stage, multimodal alignment, the mask ratio is betalinear30
         # we still use the hardcoded code for esm here: Finetuning help the model to fit into the scaled embedding.
-        if self.token_dropout:
+        if self.token_dropout and input_ids is not None:
             embeddings = embeddings.masked_fill((input_ids == self.mask_token_id).unsqueeze(-1), 0.0)
             mask_ratio_train = 0.15 * 0.8  # Hardcoded as the ratio used in all ESM model training runs
             src_lengths = attention_mask.sum(-1)
@@ -788,9 +788,9 @@ class RNAverseModel(RNAversePreTrainedModel):
         else:
             use_cache = False
 
-        if input_ids is not None and inputs_embeds is not None:
-            raise ValueError("You cannot specify both input_ids and inputs_embeds at the same time")
-        elif input_ids is not None:
+        # allow passing both input_ids and inputs_embeds (inputs_embeds replaces the word embedding,
+        # input_ids is still used for token_dropout / position_ids in early fusion)
+        if input_ids is not None:
             input_shape = input_ids.size()
         elif inputs_embeds is not None:
             input_shape = inputs_embeds.size()[:-1]
@@ -1298,18 +1298,22 @@ class RNAverseForNucleotideLevel(RNAversePreTrainedModel):
 
 class RNAverseSeqForStructuralimputation(RNAversePreTrainedModel):
 
-    def __init__(self, config):
+    def __init__(self, config, fusion_mode='late'):
         super().__init__(config)
 
         self.num_labels = config.num_labels if hasattr(config, 'num_labels') else 1
         self.config = config
+        self.fusion_mode = fusion_mode
         
         self.rnaverse = RNAverseModel(config, add_pooling_layer=False)
         if config.is_seq_only_model is False:
             raise ValueError("RNAverseSeqForStructuralimputation only works for RNAverse-seq, please set config.is_seq_only_model to True")
-        self.down_mlp = nn.Linear(config.hidden_size, config.hidden_size)
-        self.embedding_struct = nn.Linear(1,config.hidden_size)
-        self.classifier = nn.Linear(config.hidden_size*2, self.num_labels)
+        self.struct_embed = nn.Embedding(11, config.hidden_size) # 0-9 for 10 bins, 10 for null/masked value
+        self.dense = nn.Linear(config.hidden_size, config.hidden_size)
+        self.transform_act_fn = nn.GELU()
+        self.LayerNorm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
+        self.transfer = nn.Linear(config.hidden_size, config.hidden_size)
+        self.classifier = nn.Linear(config.hidden_size, self.num_labels)
         # Initialize weights and apply final processing
         self.post_init()
 
@@ -1337,16 +1341,32 @@ class RNAverseSeqForStructuralimputation(RNAversePreTrainedModel):
         """
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
         
-        outputs = self.rnaverse(
-            input_ids,
-            attention_mask=attention_mask,
-            input_struct_tokens=input_struct_tokens,
-            input_probe_method_tokens=input_probe_method_tokens,
-            input_func_tokens=input_func_tokens,
-            output_attentions=output_attentions,
-            output_hidden_states=output_hidden_states,
-            return_dict=return_dict,
-        )
+        if self.fusion_mode == 'early':
+            # early fusion: add the 11-bin struct embedding into the input embeddings via inputs_embeds
+            seq_embeds = self.rnaverse.get_input_embeddings()(input_ids)
+            struct_embeds = self.struct_embed(struct)
+            inputs_embeds = seq_embeds.clone()
+            slen = struct_embeds.shape[1]
+            inputs_embeds[:, 1:slen+1, :] = inputs_embeds[:, 1:slen+1, :] + struct_embeds
+            outputs = self.rnaverse(
+                input_ids=input_ids,
+                inputs_embeds=inputs_embeds,
+                attention_mask=attention_mask,
+                output_attentions=output_attentions,
+                output_hidden_states=output_hidden_states,
+                return_dict=return_dict,
+            )
+        else:
+            outputs = self.rnaverse(
+                input_ids,
+                attention_mask=attention_mask,
+                input_struct_tokens=input_struct_tokens,
+                input_probe_method_tokens=input_probe_method_tokens,
+                input_func_tokens=input_func_tokens,
+                output_attentions=output_attentions,
+                output_hidden_states=output_hidden_states,
+                return_dict=return_dict,
+            )
         final_input= outputs[0]
 
 
@@ -1354,12 +1374,20 @@ class RNAverseSeqForStructuralimputation(RNAversePreTrainedModel):
             raise ValueError("attention_mask(%s), weight_mask(%s) and post_token_length(%s) must have the same shape" % (attention_mask.shape, weight_mask.shape, post_token_length.shape))
         mapping_final_input = final_input
         mapping_final_input = mapping_final_input * weight_mask.unsqueeze(2)
-        mapping_final_input = self.down_mlp(mapping_final_input)[:,1:,:] # exclude [cls] token
+        mapping_final_input = mapping_final_input[:, 1:, :] # exclude [cls] token
 
-        struct_input = self.embedding_struct(struct.unsqueeze(-1))
-        final_input = torch.cat([mapping_final_input,struct_input], dim=-1)
-
-        logits = self.classifier(final_input)
+        if self.fusion_mode == 'late':
+            struct_embed = self.struct_embed(struct) # struct is the bin token (0-10), shape (bs, seq_len)
+            hidden_states = mapping_final_input + struct_embed
+        else:
+            hidden_states = mapping_final_input
+        # same order to that in RNAverseLMHead
+        hidden_states = self.dense(hidden_states)
+        hidden_states = self.transform_act_fn(hidden_states)
+        hidden_states = self.LayerNorm(hidden_states)
+        hidden_states = self.transfer(hidden_states)
+        
+        logits = self.classifier(hidden_states)
 
         label_mask = l_mask
         loss = None
@@ -1477,6 +1505,10 @@ class RNAverseForSequenceClassificationMeanPool(RNAversePreTrainedModel):
         if config.is_seq_only_model is True:
             raise ValueError("RNAverseForSequenceClassificationMeanPool only works for RNAverse, not RNAverse-seq, please set config.is_seq_only_model to False")
         self.rnaverse = RNAverseModel(config, add_pooling_layer=False)
+        self.dense = torch.nn.Linear(config.hidden_size, config.hidden_size)
+        self.transform_act_fn = torch.nn.GELU()
+        self.LayerNorm = torch.nn.LayerNorm(config.hidden_size, eps=1e-5)
+        self.transfer = torch.nn.Linear(config.hidden_size, config.hidden_size)
         self.classifier = nn.Linear(config.hidden_size, config.num_labels)
 
         # Initialize weights and apply final processing
@@ -1513,7 +1545,12 @@ class RNAverseForSequenceClassificationMeanPool(RNAversePreTrainedModel):
             return_dict=return_dict,
         )
         
-        pooled_output = torch.mean(outputs[0][:, 1:, :], dim=1) # mean pool the token representations, ignore the CLS token
+        seq_output = outputs[0][:, 1:, :]
+        seq_output = self.dense(seq_output)
+        seq_output = self.transform_act_fn(seq_output)
+        seq_output = self.LayerNorm(seq_output)
+        seq_output = self.transfer(seq_output)
+        pooled_output = torch.mean(seq_output, dim=1) # mean pool the token representations, ignore the CLS token
         logits = self.classifier(pooled_output)
 
         loss = None
@@ -1553,17 +1590,18 @@ class RNAverseForSequenceClassificationMeanPool(RNAversePreTrainedModel):
 
 
 class RNAverseSeqForSequenceClassificationWithStr(RNAversePreTrainedModel):
-    def __init__(self, config):
+    def __init__(self, config, fusion_mode='late'):
         super().__init__(config)
         self.num_labels = config.num_labels
         self.config = config
+        self.fusion_mode = fusion_mode
 
         self.rnaverse = RNAverseModel(config, add_pooling_layer=False)
         self.dense = torch.nn.Linear(config.hidden_size,config.hidden_size)
         self.transform_act_fn = torch.nn.GELU()
         self.LayerNorm = torch.nn.LayerNorm(config.hidden_size, eps=1e-5)
         self.transfer = torch.nn.Linear(config.hidden_size, config.hidden_size)
-        self.embedding_struct = nn.Linear(1,config.hidden_size)
+        self.struct_embed = nn.Embedding(11, config.hidden_size) # 0-9 for 10 bins, 10 for null/masked value
         self.classifier = nn.Linear(config.hidden_size, config.num_labels)
 
         # Initialize weights and apply final processing
@@ -1590,27 +1628,46 @@ class RNAverseSeqForSequenceClassificationWithStr(RNAversePreTrainedModel):
         """
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
-        outputs = self.rnaverse(
-            input_ids=input_ids,
-            input_struct_tokens=input_struct_tokens,
-            input_probe_method_tokens=input_probe_method_tokens,
-            input_func_tokens=input_func_tokens,
-            attention_mask=attention_mask,
-            output_attentions=output_attentions,
-            output_hidden_states=output_hidden_states,
-            return_dict=return_dict,
-        )
+        if self.fusion_mode == 'early':
+            # early fusion: add the 11-bin struct embedding into the input embeddings via inputs_embeds
+            seq_embeds = self.rnaverse.get_input_embeddings()(input_ids)
+            struct_embeds = self.struct_embed(struct)
+            inputs_embeds = seq_embeds.clone()
+            slen = struct_embeds.shape[1]
+            inputs_embeds[:, 1:slen+1, :] = inputs_embeds[:, 1:slen+1, :] + struct_embeds
+            outputs = self.rnaverse(
+                input_ids=input_ids,
+                inputs_embeds=inputs_embeds,
+                attention_mask=attention_mask,
+                output_attentions=output_attentions,
+                output_hidden_states=output_hidden_states,
+                return_dict=return_dict,
+            )
+        else:
+            outputs = self.rnaverse(
+                input_ids=input_ids,
+                input_struct_tokens=input_struct_tokens,
+                input_probe_method_tokens=input_probe_method_tokens,
+                input_func_tokens=input_func_tokens,
+                attention_mask=attention_mask,
+                output_attentions=output_attentions,
+                output_hidden_states=output_hidden_states,
+                return_dict=return_dict,
+            )
         
 
         seq_output = outputs[0][:, 1:, :]
+        if self.fusion_mode == 'late':
+            # late fusion: add the 11-bin struct embedding before the downstream MLP
+            struct_embed = self.struct_embed(struct)
+            seq_output = seq_output + struct_embed
+        # early fusion already adds the struct in the input embeddings, so no struct added here
         seq_output = self.dense(seq_output)
         seq_output = self.transform_act_fn(seq_output)
         seq_output = self.LayerNorm(seq_output)
         seq_output = self.transfer(seq_output)
-        struct_input = self.embedding_struct(struct.unsqueeze(-1))
-        final_input = seq_output + struct_input
 
-        logits = torch.mean(final_input, dim=1)
+        logits = torch.mean(seq_output, dim=1)
         logits = self.classifier(logits)
 
         loss = None

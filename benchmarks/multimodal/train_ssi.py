@@ -19,6 +19,7 @@ from torch.utils.data import Dataset
 from rnaverse.configuration_rnaverse import RNAverseConfig
 from rnaverse.modeling_rnaverse import RNAverseForStructuralimputation, RNAverseSeqForStructuralimputation
 from rnaverse.tokenization_rnaverse import RNAverseTokenizer
+from rnaverse.utils import tokenize_struct_score
 
 early_stopping = EarlyStoppingCallback(early_stopping_patience=20)
 
@@ -54,7 +55,8 @@ class TrainingArguments(transformers.TrainingArguments):
     eval_strategy: IntervalStrategy = field(default=IntervalStrategy.STEPS)
     warmup_steps: int = field(default=50)
     weight_decay: float = field(default=0.01)
-    learning_rate: float = field(default=1e-4)
+    learning_rate_lm: float = field(default=1e-5, metadata={"help": "Learning rate for the language model part."})
+    learning_rate_head: float = field(default=1e-3, metadata={"help": "Learning rate for the classification head."})
     save_total_limit: int = field(default=2)
     load_best_model_at_end: bool = field(default=True)
     output_dir: str = field(default="output")
@@ -70,6 +72,7 @@ class TrainingArguments(transformers.TrainingArguments):
     stage: str = field(default='0')
     model_type: str = field(default='rnaverse')
     train_from_scratch: bool = field(default=False)
+    fusion_mode: str = field(default='late', metadata={"help": "early or late, default late"})
     log_dir: str = field(default="output")
     attn_implementation: str = field(default="eager")
     dataloader_num_workers: int = field(default=4)
@@ -182,11 +185,13 @@ class DataCollatorForSupervisedDataset(object):
         input_func_tokens = torch.stack(input_func_tokens)
         # struct == -1 and labels != -1 are the positions to predict
         label_mask = (struct == -1) & (labels != -1)
+        # 11-way bin the struct score into token (0-9 for 10 bins, 10 for null/masked value)
+        struct_token = tokenize_struct_score(struct, bin_num=10, null_value=-1)
         return dict(
             input_ids=input_ids,
             labels=labels[label_mask],
             attention_mask=attention_mask,
-            struct=struct,
+            struct=struct_token,
             weight_mask=weight_mask,
             post_token_length=post_token_length,
             l_mask=label_mask,
@@ -248,7 +253,7 @@ def train():
             is_seq_only_model=is_seq_only,
         )
         if is_seq_only:
-            model = RNAverseSeqForStructuralimputation(config)
+            model = RNAverseSeqForStructuralimputation(config, fusion_mode=training_args.fusion_mode)
         else:
             model = RNAverseForStructuralimputation(config)
     else:
@@ -260,6 +265,7 @@ def train():
                 num_labels=train_dataset.num_labels,
                 trust_remote_code=True,
                 problem_type="regression",
+                fusion_mode=training_args.fusion_mode,
             )
         else:
             model = RNAverseForStructuralimputation.from_pretrained(
@@ -270,9 +276,42 @@ def train():
                 problem_type="regression",
             )
 
-    # define trainer
+    # define optimizer with two learning rates
     training_args.ddp_find_unused_parameters = True
     training_args.save_model = True
+    training_args.label_names = ["labels"]
+    lm_para = []
+    head_para = []
+    for name, param in model.named_parameters():
+        if name.startswith('struct_lm_head') or \
+                name.startswith('struct_embed') \
+                or name.startswith('dense') \
+                or name.startswith('classifier') \
+                or name.startswith('transfer') \
+                or name.startswith('embedding_struct') \
+                or name.startswith('LayerNorm'):
+            head_para.append(param)
+        else:
+            lm_para.append(param)
+    optimzer_grouped_parameters = [
+        {'params': lm_para, 'lr': training_args.learning_rate_lm},
+        {'params': head_para, 'lr': training_args.learning_rate_head},
+    ]
+    optimizer = torch.optim.AdamW(optimzer_grouped_parameters, lr=training_args.learning_rate_head, weight_decay=training_args.weight_decay)
+    import math
+    num_training_steps = (
+        math.ceil(
+            math.ceil(len(train_dataset) / training_args.per_device_train_batch_size)
+            / training_args.gradient_accumulation_steps
+        )
+        * training_args.num_train_epochs
+    )
+    scheduler = transformers.get_linear_schedule_with_warmup(
+        optimizer,
+        num_warmup_steps=training_args.warmup_steps,
+        num_training_steps=num_training_steps,
+    )
+
     trainer = transformers.Trainer(model=model,
                                    tokenizer=tokenizer,
                                    args=training_args,
@@ -280,6 +319,7 @@ def train():
                                    train_dataset=train_dataset,
                                    eval_dataset=val_dataset,
                                    data_collator=data_collator,
+                                   optimizers=(optimizer, scheduler),
                                    callbacks=[early_stopping],
                                    )
     trainer.train()
@@ -296,6 +336,9 @@ def train():
         results_test = trainer.evaluate(eval_dataset=test_dataset)
         with open(os.path.join(results_path, "test_results.json"), "w") as f:
             json.dump(results_test, f, indent=4)
+        results_val = trainer.evaluate(eval_dataset=val_dataset)
+        with open(os.path.join(results_path, "val_results.json"), "w") as f:
+            json.dump(results_val, f, indent=4)
         
         # remove checkpoint folders if specified
         if training_args.remove_checkpoint_folders:

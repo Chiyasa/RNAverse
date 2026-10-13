@@ -313,7 +313,13 @@ def main(args):
     if args.val_txt is not None:
         val_dataset = FtDataset(args.val_txt)
     else:
-        val_dataset = FtDataset(args.test_txt)  # If no separate val set, use test set for validation
+        '''
+        If no separate val set, use test set for validation.
+        It is the case for IGFBP3 aptamer fine-tuning, where to ensure a fair comparison,
+        we followed the same training and test split protocol used in AptaDiff and RNAGenesis
+        '''
+        val_dataset = FtDataset(args.test_txt)  
+
     test_dataset = FtDataset(args.test_txt)
     
     print(f'Number of training data: {len(train_dataset)}')

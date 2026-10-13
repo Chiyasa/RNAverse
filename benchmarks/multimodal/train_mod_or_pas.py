@@ -17,6 +17,7 @@ from torch.utils.data import Dataset
 from rnaverse.configuration_rnaverse import RNAverseConfig
 from rnaverse.modeling_rnaverse import RNAverseForSequenceClassificationMeanPool, RNAverseSeqForSequenceClassificationWithStr
 from rnaverse.tokenization_rnaverse import RNAverseTokenizer
+from rnaverse.utils import tokenize_struct_score
 
 # early_stopping = EarlyStoppingCallback(early_stopping_patience=20)
 @dataclass
@@ -31,9 +32,6 @@ class DataArguments:
     data_train_path: str = field(default=None, metadata={"help": "Path to the training data."})
     data_val_path: str = field(default=None, metadata={"help": "Path to the training data."})
     data_test_path: str = field(default=None, metadata={"help": "Path to the test data. is list"})
-    class_upper_bound: float = field(default=1, metadata={"help": "The upper bound of the label for classification. The label greater than or equal to this value will be treated as 1, and the label less than or equal to class_lower_bound will be treated as 0. The label between class_lower_bound and class_upper_bound will be discarded."})
-    class_lower_bound: float = field(default=0, metadata={"help": "The lower bound of the label for classification. The label greater than or equal to class_upper_bound will be treated as 1, and the label less than or equal to this value will be treated as 0. The label between class_lower_bound and class_upper_bound will be discarded."})
-    min_shape_coverage: float = field(default=0.2, metadata={"help": "The minimum shape coverage for a sample to be included in the dataset."})
     probe_tech: str = field(default='UNK', metadata={"help": "The probing technology used for RNA structure profiling."})
 
 @dataclass
@@ -74,6 +72,7 @@ class TrainingArguments(transformers.TrainingArguments):
     stage: str = field(default='0')
     model_type: str = field(default='rnaverse')
     train_from_scratch: bool = field(default=False)
+    fusion_mode: str = field(default='late', metadata={"help": "early (structure fused into input embeddings) or late (structure added before downstream head), default late"})
     log_dir: str = field(default="output")
     attn_implementation: str = field(default="eager")
     dataloader_num_workers: int = field(default=4)
@@ -116,9 +115,6 @@ class SupervisedDataset(Dataset):
     def __init__(self, 
                  data_path: str, args,
                  tokenizer: transformers.PreTrainedTokenizer,
-                 class_upper_bound: float = 1,
-                 class_lower_bound: float = 0,
-                 min_shape_coverage: float = 0.2,
                  probe_tech: str = 'UNK',
                  ):
 
@@ -134,21 +130,10 @@ class SupervisedDataset(Dataset):
                     continue
                 tmp_list = line.rstrip('\n').split('\t')
                 # mod and pas 
-                label_raw = float(tmp_list[-1])
+                labels.append(float(tmp_list[-1]))
                 shape_list = [float(x) for x in tmp_list[-2].split(',')]
                 seq_ = tmp_list[-3].upper()
-                shape_coverage = sum([1 for x in shape_list if x != -1]) / len(shape_list)
-                if shape_coverage < min_shape_coverage:
-                    continue
-                # 小于等于class_lower_bound的标签是0
-                # 大于等于class_upper_bound的标签是1
-                # 介于class_lower_bound和class_upper_bound之间的标签被扔了
-                if label_raw <= class_lower_bound:
-                    labels.append(0)
-                elif label_raw >= class_upper_bound:
-                    labels.append(1)
-                else:
-                    continue
+                
                 texts.append(seq_)
                 structures.append(shape_list)
 
@@ -204,7 +189,10 @@ class DataCollatorForSupervisedDataset(object):
         
         input_dict['labels'] = labels
         if self.args.model_type == 'rnaverse-seq':
-            input_dict['struct'] = torch.Tensor(structures).float()
+            struct_tensor = torch.Tensor(structures).float()
+            # 11-way bin the struct score into token (0-9 for 10 bins, 10 for null/masked value)
+            struct_token = tokenize_struct_score(struct_tensor, bin_num=10, null_value=-1)
+            input_dict['struct'] = struct_token
         return input_dict
 
 def compute_metrics(eval_pred):
@@ -239,17 +227,14 @@ def train():
     
     # define datasets and data collator
     train_dataset = SupervisedDataset(tokenizer=tokenizer, args=training_args,
-                                     data_path=os.path.join(data_args.data_path, data_args.data_train_path), 
-                                      class_upper_bound=data_args.class_upper_bound, class_lower_bound=data_args.class_lower_bound, 
-                                      min_shape_coverage=data_args.min_shape_coverage, probe_tech=data_args.probe_tech)
+                                    data_path=os.path.join(data_args.data_path, data_args.data_train_path), 
+                                    probe_tech=data_args.probe_tech)
     val_dataset = SupervisedDataset(tokenizer=tokenizer, args=training_args,
-                                     data_path=os.path.join(data_args.data_path, data_args.data_val_path), 
-                                      class_upper_bound=data_args.class_upper_bound, class_lower_bound=data_args.class_lower_bound, 
-                                      min_shape_coverage=data_args.min_shape_coverage, probe_tech=data_args.probe_tech)
+                                    data_path=os.path.join(data_args.data_path, data_args.data_val_path), 
+                                    probe_tech=data_args.probe_tech)
     test_dataset = SupervisedDataset(tokenizer=tokenizer, args=training_args,
-                                     data_path=os.path.join(data_args.data_path, data_args.data_test_path), 
-                                      class_upper_bound=data_args.class_upper_bound, class_lower_bound=data_args.class_lower_bound, 
-                                      min_shape_coverage=data_args.min_shape_coverage, probe_tech=data_args.probe_tech)
+                                    data_path=os.path.join(data_args.data_path, data_args.data_test_path), 
+                                    probe_tech=data_args.probe_tech)
     data_collator = DataCollatorForSupervisedDataset(tokenizer=tokenizer,args=training_args, probe_tech=data_args.probe_tech)
     print(f'# train: {len(train_dataset)},val:{len(val_dataset)},test:{len(test_dataset)}')
     if training_args.eval_steps == -1:
@@ -273,7 +258,7 @@ def train():
             is_seq_only_model=is_seq_only,
         )
         if is_seq_only:
-            model = RNAverseSeqForSequenceClassificationWithStr(config)
+            model = RNAverseSeqForSequenceClassificationWithStr(config, fusion_mode=training_args.fusion_mode)
         else:
             model = RNAverseForSequenceClassificationMeanPool(config)
     else:
@@ -285,6 +270,7 @@ def train():
                 num_labels=train_dataset.num_labels,
                 trust_remote_code=True,
                 problem_type=problem_type,
+                fusion_mode=training_args.fusion_mode,
             )
         else:
             model = RNAverseForSequenceClassificationMeanPool.from_pretrained(
@@ -300,7 +286,7 @@ def train():
             if name.startswith('dense') or \
                 name.startswith('classifier') \
                 or name.startswith('transfer') \
-                or name.startswith('embedding_struct') \
+                or name.startswith('struct_embed') \
                 or name.startswith('LayerNorm'):
                 print('unfreeze parameter:', name)
                 param.requires_grad = True
@@ -317,10 +303,10 @@ def train():
     lm_para = []
     head_para = []
     for name, param in model.named_parameters():
-        if name.startswith('dense') or \
-                name.startswith('classifier') \
+        if name.startswith('struct_embed') \
+                or name.startswith('dense') \
+                or name.startswith('classifier') \
                 or name.startswith('transfer') \
-                or name.startswith('embedding_struct') \
                 or name.startswith('LayerNorm'):
             head_para.append(param)
         else:
@@ -330,10 +316,18 @@ def train():
         {'params': head_para, 'lr': training_args.learning_rate_head},
     ]
     optimizer = torch.optim.AdamW(optimzer_grouped_parameters, lr=training_args.learning_rate_head, weight_decay=training_args.weight_decay)
+    import math
+    num_training_steps = (
+        math.ceil(
+            math.ceil(len(train_dataset) / training_args.per_device_train_batch_size)
+            / training_args.gradient_accumulation_steps
+        )
+        * training_args.num_train_epochs
+    )
     scheduler = transformers.get_linear_schedule_with_warmup(
         optimizer,
         num_warmup_steps=training_args.warmup_steps,
-        num_training_steps=(len(train_dataset) // training_args.per_device_train_batch_size // training_args.gradient_accumulation_steps) * training_args.num_train_epochs,
+        num_training_steps=num_training_steps,
     )
 
     trainer = transformers.Trainer(model=model,

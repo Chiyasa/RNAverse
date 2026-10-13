@@ -118,7 +118,7 @@ class GradualWarmupScheduler(_LRScheduler):
 
 
 class SeqicSHAPE(torch.utils.data.Dataset):
-    def __init__(self, data_path, select_path=None, is_test=False, is_infer=False, use_structure=True):
+    def __init__(self, data_path, select_path=None, is_test=False, is_val=False, is_infer=False, use_structure=True):
         """data loader
         
         Args:
@@ -134,14 +134,25 @@ class SeqicSHAPE(torch.utils.data.Dataset):
             Y_train = np.array(dataset['Y_train']).astype(np.int32)
             X_test  = np.array(dataset['X_test']).astype(np.float32)
             Y_test  = np.array(dataset['Y_test']).astype(np.int32)
+            if 'X_val' in dataset:
+                X_val = np.array(dataset['X_val']).astype(np.float32)
+                Y_val = np.array(dataset['Y_val']).astype(np.int32)
+            else:
+                X_val = None
+                Y_val = None
             if len(Y_train.shape) == 1:
                 Y_train = np.expand_dims(Y_train, axis=1)
                 Y_test  = np.expand_dims(Y_test, axis=1)
+                if Y_val is not None:
+                    Y_val = np.expand_dims(Y_val, axis=1)
             X_train = np.expand_dims(X_train, axis=3).transpose([0, 3, 2, 1])
             X_test  = np.expand_dims(X_test,  axis=3).transpose([0, 3, 2, 1])
+            if X_val is not None:
+                X_val = np.expand_dims(X_val, axis=3).transpose([0, 3, 2, 1])
 
             train = {'inputs': X_train, 'targets': Y_train}
             test  = {'inputs': X_test,  'targets': Y_test}
+            val   = {'inputs': X_val,   'targets': Y_val}
 
             labels, nums = np.unique(Y_train,return_counts=True)
             # print("train:", labels, nums)
@@ -150,9 +161,14 @@ class SeqicSHAPE(torch.utils.data.Dataset):
 
             train = self.__prepare_data__(train)
             test  = self.__prepare_data__(test)
+            if X_val is not None:
+                val = self.__prepare_data__(val)
 
-
-            if is_test:
+            if is_val:
+                if val['inputs'] is None:
+                    raise ValueError('the h5 file %s has no X_val' % data_path)
+                self.dataset = val
+            elif is_test:
                 if select_path != None:
                     index_list = []
                     fo1 = open(select_path, 'r')
@@ -422,17 +438,15 @@ def prism2seq(seq_array):
 
 
 def shape_bin(shape_num):
-    # shape_num is a float
+    # shape_num is a float, -1 means null
+    # 0-1 is cut into 10 equal bins: (0,0.1]->1, (0.1,0.2]->2, ..., (0.9,1.0]->10
     if shape_num == -1:
         return 0
-    elif 0 <= shape_num <= 0.1:
-        return 1
-    elif 0.1 < shape_num <= 0.24:
-        return 2
-    elif 0.24 < shape_num <= 0.48:
-        return 3
-    elif shape_num > 0.48:
-        return 4
+    elif shape_num < 0:
+        return 0
+    else:
+        bin_id = min(int(shape_num * 10) + 1, 10)
+        return bin_id
 
 
 def tailor_batch_prism_opensource(batch_data, tokenizer, args):
@@ -497,6 +511,7 @@ class PrismNetLM(nn.Module):
         self.config = extractor.config
         self.tokenizer = tokenizer
         self.args = args
+        self.fusion_mode = getattr(args, 'fusion_mode', 'late')
 
         # RNAverse uses hidden_size from config
         embed_dim = self.config.hidden_size
@@ -508,7 +523,7 @@ class PrismNetLM(nn.Module):
 
         self.downprism = PrismNet(mode='custom_lm', n_features=embed_dim)
         if self.config.is_seq_only_model:
-            self.shape_embed = torch.nn.Embedding(5, embed_dim)
+            self.shape_embed = torch.nn.Embedding(11, embed_dim)
 
 
     def forward(self,x):
@@ -520,13 +535,26 @@ class PrismNetLM(nn.Module):
         input_func_tokens = x.get('input_func_tokens', None)
         attention_mask = x['attention_mask']
         
-        output = self.extractor(
-            input_ids=input_ids,
-            input_struct_tokens=input_struct_tokens,
-            input_probe_method_tokens=input_probe_method_tokens,
-            input_func_tokens=input_func_tokens,
-            attention_mask=attention_mask
-        )
+        if self.config.is_seq_only_model and self.fusion_mode == 'early':
+            # early fusion for rnaverse-seq: add struct embedding into the input embeddings
+            seq_embeds = self.extractor.get_input_embeddings()(input_ids)
+            struct_embeds = self.shape_embed(x['shape_value'])
+            inputs_embeds = seq_embeds.clone()
+            slen = struct_embeds.shape[1]
+            inputs_embeds[:, 1:slen+1, :] = inputs_embeds[:, 1:slen+1, :] + struct_embeds
+            output = self.extractor(
+                input_ids=input_ids,
+                inputs_embeds=inputs_embeds,
+                attention_mask=attention_mask
+            )
+        else:
+            output = self.extractor(
+                input_ids=input_ids,
+                input_struct_tokens=input_struct_tokens,
+                input_probe_method_tokens=input_probe_method_tokens,
+                input_func_tokens=input_func_tokens,
+                attention_mask=attention_mask
+            )
         
         # RNAverse returns last_hidden_state
         hidden_states = output.last_hidden_state
@@ -544,13 +572,13 @@ class PrismNetLM(nn.Module):
         hidden_states = mapping_hidden_states * weight_mask.unsqueeze(2)
         # RNAverse only has CLS token, no SEP token, so remove only CLS (index 0)
         hidden_states = hidden_states[:, 1:, :]
+        if self.config.is_seq_only_model and self.fusion_mode == 'late':
+            shape_embed = self.shape_embed(x['shape_value'])
+            hidden_states = hidden_states + shape_embed
         hidden_states = self.dense(hidden_states)
         hidden_states = self.transform_act_fn(hidden_states)
         hidden_states = self.LayerNorm(hidden_states)
         hidden_states = self.transfer(hidden_states)
-        if self.config.is_seq_only_model:
-            shape_embed = self.shape_embed(x['shape_value'])
-            hidden_states = hidden_states + shape_embed
         hidden_states = torch.unsqueeze(hidden_states, 1)
         hidden_states = self.downprism(hidden_states)
         return hidden_states

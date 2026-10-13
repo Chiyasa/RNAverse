@@ -37,9 +37,11 @@ def parse_arguments():
     parser.add_argument('--tol_epoch', type = int, default = 20,
                         help = 'the tolerance epoch for early stop, int, such as 20, default is 20')
     parser.add_argument('--model_type', type=str, default='rnaverse')
+    parser.add_argument('--fusion_mode', type=str, default='late', help='early or late, default late')
     parser.add_argument('--model_name_or_path', type = str, help = 'the model name or path for lm extractor')
     parser.add_argument('--save_model_dir', type=str, default=None, help = 'save model dir, default is None, means not save model')
     parser.add_argument('--output_file', type = str, default=None, help = 'output file to save rbp and its best auc, auprc, acc')
+    parser.add_argument('--json_file', type = str, default=None, help = 'output json file to save per-rbp and mean train/val/test loss, acc, auc, auprc')
 
     args = parser.parse_args()
     return args
@@ -82,8 +84,9 @@ def train_rbp(rbp_name, args):
     rbp_data = os.path.join(args.data_dir, '%s.h5'%(rbp_name))
     if not os.path.exists(rbp_data):
         print('the rbp data file not exist:', rbp_data)
-        return
-    train_loader = DataLoader(SeqicSHAPE(rbp_data), batch_size=args.bs, shuffle=True, collate_fn = lambda batch:tailor_batch_prism_opensource(batch, tokenizer, args), num_workers=2)
+        return None
+    train_loader = DataLoader(SeqicSHAPE(rbp_data), batch_size=args.bs, shuffle=True, collate_fn = lambda batch:tailor_batch_prism_opensource(batch, tokenizer, args), num_workers=2, drop_last=True)
+    val_loader = DataLoader(SeqicSHAPE(rbp_data, is_val=True), batch_size=args.bs, shuffle=False, collate_fn = lambda batch:tailor_batch_prism_opensource(batch, tokenizer, args))
     test_loader = DataLoader(SeqicSHAPE(rbp_data, is_test=True), batch_size=args.bs, shuffle=False, collate_fn = lambda batch:tailor_batch_prism_opensource(batch, tokenizer, args))
 
     model = PrismNetLM(args, extractor, tokenizer)
@@ -141,45 +144,56 @@ def train_rbp(rbp_name, args):
         print('Training/AUPRC:', train_auprc)
 
         model.eval()
-        test_loss = 0
-        test_pred = []
-        test_label = []
 
-        for batch in tqdm(test_loader):
-            batch = {k: v.to(device) for k, v in batch.items()}
-            with torch.no_grad():
-                outputs = model(batch)
-            loss = loss_fn(outputs, batch['label'], args.pos_weight)
-            test_loss += loss.item()*batch['label'].shape[0]
-            pred_result = torch.sigmoid(outputs)
-            test_pred.extend(torch.flatten(pred_result).cpu().tolist())
-            test_label.extend(torch.flatten(batch['label']).cpu().tolist())
-        test_loss_ave = test_loss/len(test_loader.dataset)
-        test_acc = compute_acc(test_pred, test_label)
-        test_auc = compute_auc(test_pred, test_label)
-        test_auprc = compute_auprc(test_pred, test_label)
+        def evaluate(loader):
+            eval_loss = 0
+            eval_pred = []
+            eval_label = []
+            for batch in tqdm(loader):
+                batch = {k: v.to(device) for k, v in batch.items()}
+                with torch.no_grad():
+                    outputs = model(batch)
+                loss = loss_fn(outputs, batch['label'], args.pos_weight)
+                eval_loss += loss.item()*batch['label'].shape[0]
+                pred_result = torch.sigmoid(outputs)
+                eval_pred.extend(torch.flatten(pred_result).cpu().tolist())
+                eval_label.extend(torch.flatten(batch['label']).cpu().tolist())
+            eval_loss_ave = eval_loss/len(loader.dataset)
+            eval_acc = compute_acc(eval_pred, eval_label)
+            eval_auc = compute_auc(eval_pred, eval_label)
+            eval_auprc = compute_auprc(eval_pred, eval_label)
+            return eval_loss_ave, eval_acc, eval_auc, eval_auprc
+
+        val_loss_ave, val_acc, val_auc, val_auprc = evaluate(val_loader)
+        test_loss_ave, test_acc, test_auc, test_auprc = evaluate(test_loader)
+        print('Validation/Loss:', val_loss_ave)
+        print('Validation/Accuracy:', val_acc)
+        print('Validation/AUC:', val_auc)
+        print('Validation/AUPRC:', val_auprc)
         print('Test/Loss:', test_loss_ave)
         print('Test/Accuracy:', test_acc)
         print('Test/AUC:', test_auc)
         print('Test/AUPRC:', test_auprc)
         scheduler.step(epoch+1)
 
-        # write code about early stop
+        # early stop on validation auc
         if epoch == 0:
-            best_auc = test_auc
+            best_auc = val_auc
             best_epoch = epoch
-            best_metric = [train_loss_ave, train_auc, train_auprc, train_acc,
-                           test_loss_ave, test_auc, test_auprc, test_acc]
+            best_metric = [train_loss_ave, train_acc, train_auc, train_auprc,
+                           val_loss_ave, val_acc, val_auc, val_auprc,
+                           test_loss_ave, test_acc, test_auc, test_auprc]
             if args.save_model_dir != None:
                 if os.path.exists(args.save_model_dir) == False:
                     os.makedirs(args.save_model_dir)
                 torch.save(model.state_dict(), os.path.join(args.save_model_dir, 'best_model.pt'))
         else:
-            if test_auc > best_auc:
-                best_auc = test_auc
+            if val_auc > best_auc:
+                best_auc = val_auc
                 best_epoch = epoch
-                best_metric = [train_loss_ave, train_auc, train_auprc, train_acc,
-                               test_loss_ave, test_auc, test_auprc, test_acc]
+                best_metric = [train_loss_ave, train_acc, train_auc, train_auprc,
+                               val_loss_ave, val_acc, val_auc, val_auprc,
+                               test_loss_ave, test_acc, test_auc, test_auprc]
                 if args.save_model_dir != None:
                     if os.path.exists(args.save_model_dir) == False:
                         os.makedirs(args.save_model_dir)
@@ -191,20 +205,21 @@ def train_rbp(rbp_name, args):
     
     print('finish training after %s epochs'%(epoch+1))
     print('for RBP %s, best auc is:'%(rbp_name), best_auc, 'epoch is:', best_epoch)
-    print('for RBP %s, in best auc epoch, auprc is:'%(rbp_name), best_metric[6])
-    print('for RBP %s, in best auc epoch, acc is:'%(rbp_name), best_metric[7])
-    print('the best epoch training loss, auc, auprc, acc are:', best_metric[0], best_metric[1], best_metric[2], best_metric[3])
-    print('the best epoch test loss, auc, auprc, acc are:', best_metric[4], best_metric[5], best_metric[6], best_metric[7])
+    # best_metric: [train_loss, train_acc, train_auc, train_auprc, val_loss, val_acc, val_auc, val_auprc, test_loss, test_acc, test_auc, test_auprc]
+    print('the best epoch train loss, acc, auc, auprc are:', best_metric[0], best_metric[1], best_metric[2], best_metric[3])
+    print('the best epoch val loss, acc, auc, auprc are:', best_metric[4], best_metric[5], best_metric[6], best_metric[7])
+    print('the best epoch test loss, acc, auc, auprc are:', best_metric[8], best_metric[9], best_metric[10], best_metric[11])
 
     if args.output_file != None:
         out_dir = os.path.dirname(args.output_file)
         if os.path.exists(out_dir) == False:
             os.makedirs(out_dir)
         with open(args.output_file, 'a') as f:
-            f.write(rbp_name + '\t' + str(best_metric[5]) + '\t' + str(best_metric[6]) + '\t' + str(best_metric[7]) + '\n')
+            f.write(rbp_name + '\t' + str(best_metric[10]) + '\t' + str(best_metric[11]) + '\t' + str(best_metric[9]) + '\n')
 
     tick2 = time.time()
     print('cost time for training rbp %s:'%(rbp_name), tick2 - tick1)
+    return best_metric
             
 def main(args):
     for arg in vars(args):
@@ -218,10 +233,30 @@ def main(args):
 
     RBP_name_list = [x.rstrip('\n') for x in fo1all]
 
+    dict_result = {}
     for rbp_name in RBP_name_list:
-        train_rbp(rbp_name, args)
+        best_metric = train_rbp(rbp_name, args)
+        if best_metric is not None:
+            dict_result[rbp_name] = {
+                'train': {'loss': best_metric[0], 'acc': best_metric[1], 'auc': best_metric[2], 'auprc': best_metric[3]},
+                'val': {'loss': best_metric[4], 'acc': best_metric[5], 'auc': best_metric[6], 'auprc': best_metric[7]},
+                'test': {'loss': best_metric[8], 'acc': best_metric[9], 'auc': best_metric[10], 'auprc': best_metric[11]},
+            }
         time.sleep(5)
 
+    if args.json_file != None:
+        import json
+        metric_names = ['loss', 'acc', 'auc', 'auprc']
+        mean_result = {}
+        for split in ['train', 'val', 'test']:
+            mean_result[split] = {m: float(np.mean([dict_result[r][split][m] for r in dict_result])) for m in metric_names}
+        dict_result['mean'] = mean_result
+        out_dir = os.path.dirname(args.json_file)
+        if out_dir != '' and os.path.exists(out_dir) == False:
+            os.makedirs(out_dir)
+        with open(args.json_file, 'w') as f:
+            json.dump(dict_result, f, indent=2, ensure_ascii=False)
+        print('json result saved to %s' % args.json_file)
 
     tick_all = time.time()
     print('all cost time:', tick_all - tick1)
