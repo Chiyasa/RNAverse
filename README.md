@@ -44,11 +44,11 @@ pip install rnaverse
 ## :arrow_down: Download Model Weights and Benchmark Datasets
 
 <p align="justify">
-We have uploaded the model weights and benchmark datasets of RNAverse to Zenodo. Please download them from the links below, place them in the respective directories, and unzip them:
+We have uploaded the model weights and benchmark datasets of RNAverse to figshare. Please download them from the links below, place them in the respective directories, and unzip them:
 </p>
 
-- **Model weights** (RNAverse, RNAverse-aptamer, RNAverse-UTR, RNAverse-SHAPE) can be downloaded from [Zenodo](https://zenodo.org/records/20527121/) and should be placed into the `./model_weights/` directory.
-- **Benchmark datasets** can be downloaded from [Zenodo](https://zenodo.org/records/20526662) and should be placed into the `./data/` directory.
+- **Model weights** (RNAverse, RNAverse-aptamer, RNAverse-UTR, RNAverse-SHAPE) can be downloaded from [figshare](https://doi.org/10.6084/m9.figshare.34476072) and should be placed into the `./model_weights/` directory.
+- **Benchmark datasets** can be downloaded from [figshare](https://doi.org/10.6084/m9.figshare.34475931) and should be placed into the `./data/` directory.
 
 Alternatively, you can use the following commands:
 
@@ -59,21 +59,21 @@ cd RNAverse
 # Download model weights (RNAverse, RNAverse-aptamer, RNAverse-UTR, and RNAverse-SHAPE)
 # into the ./model_weights/ directory
 cd ./model_weights
-wget https://zenodo.org/records/20527121/files/rnaverse.zip
+wget -O rnaverse.zip https://ndownloader.figshare.com/files/70070067
 unzip rnaverse.zip
 
-wget https://zenodo.org/records/20527121/files/rnaverse_aptamer.zip
+wget -O rnaverse_aptamer.zip https://ndownloader.figshare.com/files/70070064
 unzip rnaverse_aptamer.zip
 
-wget https://zenodo.org/records/20527121/files/rnaverse_utr.zip
+wget -O rnaverse_utr.zip https://ndownloader.figshare.com/files/70070070
 unzip rnaverse_utr.zip
 
-wget https://zenodo.org/records/20527121/files/rnaverse_shape.zip
+wget -O rnaverse_shape.zip https://ndownloader.figshare.com/files/70070073
 unzip rnaverse_shape.zip
 
 # Download benchmark datasets into the ./data/ directory
 cd ../data
-wget https://zenodo.org/records/20526662/files/benchmarks.zip
+wget -O benchmarks.zip https://ndownloader.figshare.com/files/700697499
 unzip benchmarks.zip
 ```
 
