@@ -315,7 +315,7 @@ def main(args):
     else:
         '''
         No separate validation set is provided for the IGFBP3 aptamer fine-tuning task, 
-        so the test set is used for validation. This is not an arbitrary choice: the
+        so the test set also serves as the validation set. This is not an arbitrary choice: the
         original protocols of AptaDiff and RNAGenesis do not reserve a held-out validation 
         set, and we keep the same training-test split to ensure a fair comparison.
         '''
