@@ -297,10 +297,8 @@ python3 ./examples/ft_mlm.py \
     --test_txt ./data/design/datasetA_IGFBP3_P6_test_rnaverse.txt
 ```
 
-This command takes about **1.4 hours** on a single GPU.
-
 <p align="justify">
-We provide the trained model weights of RNAverse-aptamer, which can be directly used for in-painting generation of the IGFBP3 aptamer:
+This command takes about **1.4 hours** on a single GPU. We provide the trained model weights of RNAverse-aptamer, which can be directly used for in-painting generation of the IGFBP3 aptamer:
 </p>
 
 ```bash
