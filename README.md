@@ -217,10 +217,10 @@ python3 ./benchmarks/multimodal/train_ssi.py \
     --per_device_train_batch_size 32 \
     --per_device_eval_batch_size 32 \
     --gradient_accumulation_steps 1 \
-    --learning_rate 3e-5 \
+    --learning_rate_lm 5e-6 --learning_rate_head 5e-4 \
     --num_train_epochs 30 \
     --fp16 \
-    --save_steps 400 \
+    --save_steps 200 \
     --output_dir ./output/downstream/SSI_293_seed42 \
     --save_strategy steps \
     --eval_strategy steps \
