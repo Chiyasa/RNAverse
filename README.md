@@ -40,7 +40,7 @@ pip install torch==2.1.0 torchvision==0.16.0 torchaudio==2.1.0 --index-url https
 pip install rnaverse
 ```
 
-> :information_source: **Note:** Installing this conda environment on a Linux server takes about **15 minutes**; the actual time depends on your network speed.
+> :information_source: **Note:** Installing this conda environment on a Linux server takes about 15 minutes; the actual time depends on your network speed.
 
 <a name="download-model-weights-and-benchmark-datasets"></a>
 ## :arrow_down: Download Model Weights and Benchmark Datasets
@@ -243,7 +243,7 @@ python3 ./benchmarks/multimodal/train_ssi.py \
     --model_type rnaverse
 ```
 
-This training runs for about **15 minutes** on a single NVIDIA A800 40G GPU. The performance on the test set will be saved to `./output/downstream/SSI_293_seed42/results/rnaverse_ssi_293_seed42/test_results.json`. The content of `test_results.json` is shown below:
+This training runs for about 15 minutes on a single NVIDIA A800 40G GPU. The performance on the test set will be saved to `./output/downstream/SSI_293_seed42/results/rnaverse_ssi_293_seed42/test_results.json`. The content of `test_results.json` is shown below:
 
 ![Downstream task results](./figs/demo3.png)
 
@@ -268,7 +268,7 @@ python3 ./generation/in_painting.py \
     --output_fa ./output/design/RNAverse_gACA19.fa
 ```
 
-This design runs for about **6 minutes** on a single NVIDIA A800 40G GPU. The designed sequences will be saved in FASTA format to `./output/design/RNAverse_gACA19.fa`.
+This design runs for about 6 minutes on a single NVIDIA A800 40G GPU. The designed sequences will be saved in FASTA format to `./output/design/RNAverse_gACA19.fa`.
 
 <a name="fine-tuned-in-painting"></a>
 ## :art: Fine-Tuned In-Painting
@@ -298,7 +298,7 @@ python3 ./examples/ft_mlm.py \
 ```
 
 <p align="justify">
-This command takes about **1.4 hours** on a single GPU. We provide the trained model weights of RNAverse-aptamer, which can be directly used for in-painting generation of the IGFBP3 aptamer:
+This command takes about 1.4 hours on a single GPU. We provide the trained model weights of RNAverse-aptamer, which can be directly used for in-painting generation of the IGFBP3 aptamer:
 </p>
 
 ```bash
@@ -313,7 +313,7 @@ python3 ./generation/in_painting.py \
     --output_fa ./output/design/RNAverse_aptamer.fa
 ```
 
-This design runs for about **3 minutes** on a single NVIDIA A800 40G GPU. The designed sequences will be saved in FASTA format to `./output/design/RNAverse_aptamer.fa`.
+This design runs for about 3 minutes on a single NVIDIA A800 40G GPU. The designed sequences will be saved in FASTA format to `./output/design/RNAverse_aptamer.fa`.
 
 <a name="iterative-optimization"></a>
 ## :repeat: Iterative Optimization
@@ -337,4 +337,4 @@ python3 ./generation/iterative_optimization.py \
     --random_seed 42
 ```
 
-This optimization runs for about **1.3 hours** on a single NVIDIA A800 40G GPU. The designed sequences will be saved to the `./output/design/iter_opt_utr5/` directory.
+This optimization runs for about 1.3 hours on a single NVIDIA A800 40G GPU. The designed sequences will be saved to the `./output/design/iter_opt_utr5/` directory.
