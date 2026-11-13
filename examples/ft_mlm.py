@@ -314,10 +314,10 @@ def main(args):
         val_dataset = FtDataset(args.val_txt)
     else:
         '''
-        No separate validation set is provided for this task, so the test set is used
-        for validation (i.e., model selection). This is not an arbitrary choice: the
-        original protocols of AptaDiff and RNAGenesis also do not reserve a held-out
-        validation set, and we keep this setting unchanged to ensure a fair comparison.
+        No separate validation set is provided for the IGFBP3 aptamer fine-tuning task, 
+        so the test set is used for validation. This is not an arbitrary choice: the
+        original protocols of AptaDiff and RNAGenesis do not reserve a held-out validation 
+        set, and we keep the same training-test split to ensure a fair comparison.
         '''
         val_dataset = FtDataset(args.test_txt)  
 
